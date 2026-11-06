@@ -34,7 +34,7 @@ mqttClient.on('connect', () => {
 
 mqttClient.on('message', (topic, message) => {
     if (topic == 'agniot/kelompok2/telemetry') {
-        const payload = JSON.parse(message,toString());
+        const payload = JSON.parse(message.toString());
         console.log('Telemetri masuk:', payload);
         // Simpan ke database MySQL di sini
         const query = 'INSERT INTO telemetry_logs (temperature, flame, co2, timestamp) VALUES (?, ?, ?, NOW())';
@@ -51,7 +51,7 @@ mqttClient.on('message', (topic, message) => {
 });
 
 //================ API ENDPOINT UNTUK OVERRIDE POMPA DARI BACKEND =================
-app.post('/api/control', (req, rest) => {
+app.post('/api/control', (req, res) => {
     const {action} = req.body; // "PUMP_ON" atau "PUMP_OFF"
     mqttClient.publish('agniot/kelompok2/control', action);
     res.json({success: true, message: `Perintah ${action} dikirim ke HiveMQ`});
