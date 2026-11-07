@@ -2,9 +2,15 @@ const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
 const mysql = require('mysql2');
+const http = require('http');
+const {Server} = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
 
@@ -29,24 +35,18 @@ const mqttClient = mqtt.connect('mqtt://broker.hivemq.com:1883');
 mqttClient.on('connect', () => {
     console.log('Terhubung ke HiveMQ Public Broker');
     //Subs ke topic telemetry dari ESP-12E
-    mqttClient.subscribe('agniot/kelompok2/telemetry');  
+    mqttClient.subscribe('agniot/kelompok2/telemetry');
 });
 
 mqttClient.on('message', (topic, message) => {
     if (topic == 'agniot/kelompok2/telemetry') {
         const payload = JSON.parse(message.toString());
         console.log('Telemetri masuk:', payload);
+
         // Simpan ke database MySQL di sini
         const query = 'INSERT INTO telemetry_logs (temperature, flame, co2, timestamp) VALUES (?, ?, ?, NOW())';
-        const values = [payload.temperature, payload.flame, payload.co2];
-
-        db.query(query, values, (err, result) => {
-            if (err) {
-                console.error('Gagal menyimpan ke db: ', err);
-            } else {
-                console.log('Data telemetri berhasil disimpan ke db ID: ', result.insertId);
-            }
-        });
+        db.query(query, [payload.temperature, payload.flame, payload.co2]);
+        io.emit('telemetryUpdate', payload);
     }
 });
 
@@ -58,4 +58,4 @@ app.post('/api/control', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));
+server.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));
