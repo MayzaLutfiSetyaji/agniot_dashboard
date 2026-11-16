@@ -1,10 +1,15 @@
 const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
-const mysql = require('mysql2');
 const http = require('http');
 const {Server} = require('socket.io');
 require('dotenv').config();
+
+//supabase client
+const supabase = require('./config/db');
+
+const apiRoutes = require('./routes/apiRoutes');
+const webRoutes = require('./routes/webRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,38 +19,38 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
 
-// ============== KONEKSI DATABASE MYSQL ==================
-const db = mysql.createConnection({
-    host: 'localhost',  
-    user: 'root',
-    password: '',
-    database: 'agniot_db' //Pastikan db sudah dibuat terlebih dahulu
-});
-
-db.connect((err) => {
-    if (err) {
-        console.error('Koneksi MySQL gagal:',err);
-        return
-    }
-    console.log('Terhubung ke database');
-});
+//menggunakan rute modular
+app.use('/api', apiRoutes);
+app.use('/', webRoutes);
 
 // ============ INTEGRASI HIVEMQ MQTT BROKER ============
-const mqttClient = mqtt.connect('mqtt://broker.hivemq.com:1883');
+const mqttClient = mqtt.connect(`mqtt://${process.env.MQTT_BROKER || 'broker.hivemq.com'}:${process.env.MQTT_PORT || 1883}`);
 mqttClient.on('connect', () => {
     console.log('Terhubung ke HiveMQ Public Broker');
     //Subs ke topic telemetry dari ESP-12E
     mqttClient.subscribe('agniot/kelompok2/telemetry');
 });
 
-mqttClient.on('message', (topic, message) => {
+mqttClient.on('message', async (topic, message) => {
     if (topic == 'agniot/kelompok2/telemetry') {
         const payload = JSON.parse(message.toString());
         console.log('Telemetri masuk:', payload);
 
-        // Simpan ke database MySQL di sini
-        const query = 'INSERT INTO telemetry_logs (temperature, flame, co2, timestamp) VALUES (?, ?, ?, NOW())';
-        db.query(query, [payload.temperature, payload.flame, payload.co2]);
+        //Menyimpan data telemetry ke table telemetry_logs di supabase
+        const {error} = await supabase
+            .from('telemetry_logs')
+            .insert([{
+                temperature: payload.temperature,
+                flame: payload.flame,
+                co2: payload.co2
+            }]);
+        
+        if (error) {
+            console.error('Gagal menyimpan data ke Supabase');
+        } else {
+            console.log('Data berhasil disimpan ke Supabase');
+        }
+
         io.emit('telemetryUpdate', payload);
     }
 });
