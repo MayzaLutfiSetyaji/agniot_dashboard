@@ -9,4 +9,7 @@ const controlController = require('../controllers/controlController');
 //mengambil riwayat log telemetry dari database
 router.get('/telemetry/logs', telemetryController.getTelemetryLogs);
 
+//route untuk export event log dalam file berformat csv
+router.get('/telemetry/export', telemetryController.exportCSV);
+
 module.exports = router;

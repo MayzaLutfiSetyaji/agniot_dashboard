@@ -1,5 +1,5 @@
 //Inisialisasi CHART.JS 
-const ctx = document.getElementedById('telemetryChart').getContext('2d');
+const ctx = document.getElementById('telemetryChart').getContext('2d');
 const telemetryChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -14,7 +14,7 @@ const telemetryChart = new Chart(ctx, {
                 fill: true
             },
             {
-                label: "CO2 / Asap (PPM),",
+                label: "CO2 / Asap (PPM)",
                 data: [],
                 borderColor: "#06b6d4",
                 backgroundColor: 'rgba(6, 182, 212, 0.1)',
@@ -64,54 +64,95 @@ async function sendOverride(action) {
 //inisialisasi client supabase di front-end
 const SUPABASE_URL = 'https://xaamuzsqvgiauzpmttsp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_EhWx0tcs1cf4ZCXmoyftWw_YpDxYE3W';
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+//function: memperbarui seluruh UI (card, banner, grafik, tabel)
+function renderTelemetryPoint(data) {
+    //update indicator card
+    document.getElementById('tempValue').innerText = data.temperature ?? '0';
+    document.getElementById('co2Value').innerText = data.co2 ?? '0';
+
+    //logika teks untuk indikator flame sensor
+    const flameVal = data.flame;
+    const isFireDetected = (flameVal === 0 || flameVal === '0' || data.ai_status === 'BERBAHAYA');
+    const flameElement = document.getElementById('flameValue');
+
+    if (isFireDetected) {
+        flameElement.innerText = 'Terjadi Kebakaran';
+        flameElement.className = 'text-3xl font-extrabold text-red-500 mb-2';
+    } else {
+        flameElement.innerText = 'Tidak ada api';
+        flameElement.className = 'text-3xl font-extrabold text-white mb-2'
+    }
+
+    //update banner status AI sistem secara otomatis
+    const banner = document.getElementById('aiStatusBanner');
+    if (isFireDetected) {
+        banner.className = 'p-5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between transition-all';
+        banner.querySelector('h2').innerText = 'STATUS BERBAHAYA (KEBAKARAN AKTIF)';
+    } else {
+        banner.className = 'p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between transition-all';
+        banner.querySelector('h2').innerText = 'STATUS AMAN (TIDAK ADA KEBAKARAN)';
+    }
+
+    //memasukkan data baru kke Chart.JS
+    const timeNow = new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    telemetryChart.data.labels.push(timeNow);
+    telemetryChart.data.datasets[0].data.push(data.temperature ?? 0);
+    telemetryChart.data.datasets[1].data.push(data.co2 ?? 0);
+
+    //membatasi riwayat grafik hanya berjumlah 10 titik
+    if (telemetryChart.data.labels.length > 10) {
+        telemetryChart.data.labels.shift();
+        telemetryChart.data.datasets[0].data.shift();
+        telemetryChart.data.datasets[1].data.shift();
+    }
+    telemetryChart.update();
+
+    //memasukkan baris baru ke tabel event log
+    const tableBody = document.getElementById('logTableBody');
+    if (tableBody) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-slate-800 hover:bg-slate-800/40 transition';
+        tr.innerHTML = `
+            <td class="px-5 py-3 text-xs text-slate-300">${new Date(data.timestamp || Date.now()).toLocaleString()}</td>
+            <td class="px-5 py-3 text-xs text-slate-300">${data.temperature ?? 0} °C</td>
+            <td class="px-5 py-3 text-xs text-slate-300">${isFireDetected ? 'Terdeteksi' : 'Aman'}</td>
+            <td class="px-5 py-3 text-xs text-slate-300">${data.co2 ?? 0}</td>
+            <td class="px-5 py-3 text-xs font-semibold ${isFireDetected ? 'text-red-400' : 'text-emerald-400'}">${data.ai_status || 'NORMAL'}</td>
+        `;
+        tableBody.insertBefore(tr, tableBody.firstChild);
+        if (tableBody.children.length > 10) {
+            tableBody.removeChild(tableBody.lastChild);
+        }
+    }
+}
+
+//mengambil 10 data terakhir
+async function loadInitialData() {
+    const {data, error} = await _supabase
+        .from('telemetry_logs')
+        .select('*')
+        .order('timestamp', {ascending: false})
+        .limit(10);
+
+    if (error) {
+        console.error('Gagal mengambil data dari Supabase: ', error.message);
+        return;
+    }
+
+    if (data && data.length > 0) {
+        data.reverse().forEach(row => renderTelemetryPoint(row)); //urutan: data lama -> data baru
+    }
+}
+
+loadInitialData();
 
 //mendengarkan data baru real-time dari tabel telemetry_logs
 _supabase
     .channel('public:telemetry_logs')
     .on('postgres_changes', {event: 'INSERT', schema: 'public', table: 'telemetry_logs'}, (payload) => {
-            const data = payload.new;
-            console.log('Data real-time dari Supabase: ', data);
-
-            //update tampilan UI indicator card
-            document.getElementById('tempValue').innerText = data.temperature ?? '0';
-            document.getElementById('co2Value').innerText = data.co2 ?? '0';
-
-            //logika teks untuk indikator flame sensor
-            const flameVal = data.flame;
-            const isFireDetected = (flameVal === 0 || flameVal === true || flameVal === '1' || flameVal === 1)
-            const flameElement = document.getElementById('flameValue');
-
-            if (isFireDetected) {
-                flameElement.innerText = 'Terjadi Kebakaran';
-                flameElement.className = 'text-3xl font-extrabold text-red-500 mb-2';
-            } else {
-                flameElement.innerText = 'Tidak ada api';
-                flameElement.className = 'text-3xl font-extrabold text-white mb-2'
-            }
-
-            //update banner status AI sistem secara otomatis
-            const banner = document.getElementById('aiStatusBanner');
-            if (isFireDetected) {
-                banner.className = 'p-5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between transition-all';
-                banner.querySelector('h2').innerText = 'STATUS BERBAHAYA (KEBAKARAN AKTIF)';
-            } else {
-                banner.className = 'p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between transition-all';
-                banner.querySelector('h2').innerText = 'STATUS AMAN (TIDAK ADA KEBAKARAN)';
-            }
-
-            //memasukkan data baru kke Chart.JS
-            const timeNow = new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
-            telemetryChart.data.labels.push(timeNow);
-            telemetryChart.data.datasets[0].data.push(data.temperature ?? 0);
-            telemetryChart.data.datasets[1].data.push(data.co2 ?? 0);
-
-            //membatasi riwayat grafik hanya berjumlah 10 titik
-            if (telemetryChart.data.labels.length > 10) {
-                telemetryChart.data.labels.shift();
-                telemetryChart.data.datasets[0].data.shift();
-                telemetryChart.data.datasets[1].data.shift();
-            }
-            telemetryChart.update();
+        console.log('Data real-time dari Supabase: ', payload.new);
+        renderTelemetryPoint(payload.new);
     })
     .subscribe();
