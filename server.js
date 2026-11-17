@@ -20,6 +20,12 @@ app.use(express.json());
 app.use(cors());
 
 //menggunakan rute modular
+app.post('/api/control', (req, res) => {
+    const {action} = req.body; // "PUMP_ON" atau "PUMP_OFF"
+    mqttClient.publish('agniot/kelompok2/control', action);
+    res.json({success: true, message: `Perintah ${action} dikirim ke HiveMQ`});
+});
+
 app.use('/api', apiRoutes);
 app.use('/', webRoutes);
 
@@ -44,7 +50,7 @@ mqttClient.on('message', async (topic, message) => {
             .from('telemetry_logs')
             .insert([{
                 temperature: payload.temperature,
-                flame: payload.flame,
+                flame: isFire,
                 co2: payload.co2
             }]);
         
@@ -59,11 +65,5 @@ mqttClient.on('message', async (topic, message) => {
 });
 
 //================ API ENDPOINT UNTUK OVERRIDE POMPA DARI BACKEND =================
-app.post('/api/control', (req, res) => {
-    const {action} = req.body; // "PUMP_ON" atau "PUMP_OFF"
-    mqttClient.publish('agniot/kelompok2/control', action);
-    res.json({success: true, message: `Perintah ${action} dikirim ke HiveMQ`});
-});
-
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));

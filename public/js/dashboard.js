@@ -156,3 +156,40 @@ _supabase
         renderTelemetryPoint(payload.new);
     })
     .subscribe();
+
+//function: donwload dataset dari tabel event log menjadi file CSV
+function exportToCSV()  {
+    const table = document.querySelector('table');
+    if (!table) {
+        alert('Tabel tidak ditemukan');
+        return;
+    }
+    
+    //mengambil semua baris dari header sampai body
+    const rows = Array.from(table.querySelectorAll('tr'));
+    //filter jika hanya ada baris header atau isi tabel kosong
+    const dataRows = table.querySelectorAll('tbody tr');
+    if (dataRows.length === 0) {
+        alert('Belum ada data log yang diexport');
+        return;
+    }
+
+    if (rows.length <= 1) {
+        alert('Belum ada data log untuk diekspor');
+        return;
+    }
+
+    const csvContent = rows.map(row => {
+        const cols = Array.from(row.querySelectorAll('th, td'));
+        return cols.map(col => `"${col.innerText.replace(/"/g, '""')}"`).join(',');
+    }).join('\n');
+
+    const blob = new Blob([csvContent], {type : 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AgniOT_Log_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
