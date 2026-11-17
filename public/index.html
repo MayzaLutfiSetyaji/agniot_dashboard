@@ -205,22 +205,7 @@
                                 <th class="px-6 py-3">Status AI</th>
                             </tr>
                         </thead>
-                        <tbody id="logTableBody" class="divide-y divide-brand-border">
-                            <tr class="hover:bg-slate-800/40 transition">
-                                <td class="px-6 py-4">07 Nov 2026 13:30</td>
-                                <td class="px-6 py-4">28.5 °C</td>
-                                <td class="px-6 py-4"><span class="text-emerald-400">Normal</span></td>
-                                <td class="px-6 py-4">350 PPM</td>
-                                <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs bg-emerald-500/10 text-emerald-400 font-semibold">Normal</span></td>
-                            </tr>
-                            <tr class="hover:bg-slate-800/40 transition">
-                                <td class="px-6 py-4">07 Nov 2026 13:25</td>
-                                <td class="px-6 py-4">38.1 °C</td>
-                                <td class="px-6 py-4"><span class="text-emerald-400">Normal</span></td>
-                                <td class="px-6 py-4">390 PPM</td>
-                                <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs bg-emerald-500/10 text-emerald-400 font-semibold">Peringatan Suhu Tinggi</span></td>
-                            </tr>
-                        </tbody>
+                        <tbody id="logTableBody" class="divide-y divide-brand-border"></tbody>
                     </table>
                 </div>
             </div>
@@ -228,124 +213,6 @@
         </main>
     </div>
 
-    <!-- Script Client Untuk Chart JS & API Control -->
-    <script>
-        const ctx = document.getElementById('telemetryChart').getContext('2d');
-        const telemetryChart = new Chart(ctx, {
-            type:'line',
-            data: {
-                labels: ['13:00', '13:05', '13:10', '13:15', '13:20', '13:25', '13:30'],
-                datasets: [
-                    {
-                        label: 'Suhu (°C)',
-                        data: [26.5, 27.0, 27.5, 28.0, 29.5, 38.1, 28.5],
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                        tension: 0.3,
-                        fill: true
-                    },
-                    {
-                        label: 'CO2 (PPM)',
-                        data: [320, 330, 340, 350, 360, 390, 350],
-                        borderColor: '#06b6d4',
-                        tension: 0.3
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { label: { color: '#94a3b8'} }
-                },
-                scales: {
-                    x: { ticks: { color: '#64748b' }, grid: { color: '#334155'} },
-                    y: { ticks: { color: '#64748b' }, grid: { color: '#334155'}}
-                }
-            }
-        });
-
-        async function sendOverride(action) {
-            try {
-                const response = await fetch('/api/control', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action})
-                });
-                const result = await response.json();
-    
-                if (result.success) {
-                    const badge = document.getElementById('pumpStatusBadge');
-                    if (action === 'PUMP_ON') {
-                        badge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/20 text-red-400 border border-red-500/30';
-                        badge.innerText = 'Status Pompa: OVERRIDE ON (NYALA)';
-                    } else {
-                        badge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-slate-700 text-slate-300';
-                        badge.innerText = 'Status Pompa: OVERRIDE OFF (MATI)';
-                    }
-                }
-            } catch (err) {
-                console.error('Gagal mengirim perintah override: ', err);
-            }
-        }
-    </script>
-
-    
-    <script>
-        //inisialisasi client supabase di front-end
-        const SUPABASE_URL = 'https://xaamuzsqvgiauzpmttsp.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_EhWx0tcs1cf4ZCXmoyftWw_YpDxYE3W';
-        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        //menerima data real-time dari Supabase
-        _supabase
-            .channel('public:telemetry_logs')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_logs' }, (payload) => {
-                const data = payload.new;
-                console.log('Data real-time dari Supabase: ', data);
-
-            //Update kartu telemetri
-            document.getElementById('tempValue').innerText = data.temperature;
-            document.getElementById('co2Value').innerText = data.co2;
-
-            //logika teks untuk indikator flame sensor
-            const flameVal = data.flame;
-            const isFireDetected = (flameVal === 0 || flameVal === true || flameVal === '1' || flameVal === 1)
-            const flameElement = document.getElementById('flameValue');
-
-            if (isFireDetected) {
-                flameElement.innerText = 'Terjadi Kebakaran';
-                flameElement.className = 'text-3xl font-extrabold text-red-500 mb-2';
-            } else {
-                flameElement.innerText = 'Tidak ada api';
-                flameElement.className = 'text-3xl font-extrabold text-white mb-2'
-            }
-
-            //update banner status AI sistem secara otomatis
-            const banner = document.getElementById('aiStatusBanner');
-            if (isFireDetected) {
-                banner.className = 'p-5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between transition-all';
-                banner.querySelector('h2').innerText = 'STATUS BERBAHAYA (KEBAKARAN AKTIF)';
-            } else {
-                banner.className = 'p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between transition-all';
-                banner.querySelector('h2').innerText = 'STATUS AMAN (TIDAK ADA KEBAKARAN)';
-            }
-
-            //memasukkan data baru kke Chart.JS
-            const timeNow = new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
-            telemetryChart.data.labels.push(timeNow);
-            telemetryChart.data.datasets[0].data.push(data.temperature ?? 0);
-            telemetryChart.data.datasets[1].data.push(data.co2 ?? 0);
-
-            //membatasi riwayat grafik hanya berjumlah 10 titik
-            if (telemetryChart.data.labels.length > 10) {
-                telemetryChart.data.labels.shift();
-                telemetryChart.data.datasets[0].data.shift();
-                telemetryChart.data.datasets[1].data.shift();
-            }
-            telemetryChart.update();
-    })
-    .subscribe();
-    </script>
+    <script src="/js/dashboard.js"></script>
 </body>
 </html>

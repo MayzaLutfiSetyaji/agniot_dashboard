@@ -36,6 +36,9 @@ mqttClient.on('message', async (topic, message) => {
         const payload = JSON.parse(message.toString());
         console.log('Telemetri masuk:', payload);
 
+        //konversi flame dari ESP8266 (0 = api terdeteksi -> true, 1 = aman -> false)
+        const isFire = (payload.flame === 0 || payload.flame === '0' || payload.flame === true);
+
         //Menyimpan data telemetry ke table telemetry_logs di supabase
         const {error} = await supabase
             .from('telemetry_logs')

@@ -74,7 +74,7 @@ function renderTelemetryPoint(data) {
 
     //logika teks untuk indikator flame sensor
     const flameVal = data.flame;
-    const isFireDetected = (flameVal === 0 || flameVal === '0' || data.ai_status === 'BERBAHAYA');
+    const isFireDetected = (flameVal === true || flameVal === 0 || flameVal === '0' || data.ai_status === 'BERBAHAYA');
     const flameElement = document.getElementById('flameValue');
 
     if (isFireDetected) {
